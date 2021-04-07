@@ -4,8 +4,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
+import 'package:hrv_app/storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share/share.dart';
+
+import 'hr_device.dart';
 
 void main() {
   runApp(MyApp());
@@ -37,9 +40,8 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   bool _searching = false;
   Map<DeviceIdentifier, BluetoothDevice> _devices = Map<DeviceIdentifier, BluetoothDevice>();
-  BluetoothDevice _device;
-  BluetoothService _service;
-  BluetoothCharacteristic _hrm;
+  HrDevice _hrDevice = HrDevice();
+  Storage _storage = new Storage();
   int _hr = 0;
   int _rr = 0;
   bool _listening = true;
@@ -99,9 +101,9 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void stopListening() {
-    if (_service == null) return;
-    var hrm = _service.characteristics.firstWhere((c) => c.uuid == heartRateMeasurementGuid, orElse: null);
-    _storageFileName = "";
+    if (_hrDevice.service == null) return;
+    var hrm = _hrDevice.service.characteristics.firstWhere((c) => c.uuid == heartRateMeasurementGuid, orElse: null);
+    _storage.storageFileName = "";
 
     if (hrm != null) {
       hrm.setNotifyValue(false);
@@ -120,13 +122,13 @@ class _MyHomePageState extends State<MyHomePage> {
     if (await device.state.first == BluetoothDeviceState.connected) return;
 
     await device.connect(timeout: Duration(seconds: 3));
-    _service = null;
+    _hrDevice.service = null;
     var services = await device.discoverServices();
     services.forEach((service) {
-      if (_service == null && service.uuid == heartRateService) {
-        _device = device;
-        _service = service;
-        _stateSubscription = _device.state.listen((event) {
+      if (_hrDevice.service == null && service.uuid == heartRateService) {
+        _hrDevice.device = device;
+        _hrDevice.service = service;
+        _stateSubscription = _hrDevice.device.state.listen((event) {
           setState(() {
             _state = event.toString();
           });
@@ -134,31 +136,30 @@ class _MyHomePageState extends State<MyHomePage> {
         print("HR sensor found.");
       }
     });
-    if (_service != null) {
+    if (_hrDevice.service != null) {
       startListening();
     }
   }
 
-  String _storageFileName = "";
   void storeRrData() async {
     _storing = true;
-    if (_storageFileName == "") {
+    if (_storage.storageFileName == "") {
       var appDocDir = await getApplicationDocumentsDirectory();
       var now = DateTime.now().toIso8601String().replaceAll(':', '-');
-      _storageFileName = '${appDocDir.path}/hr_$now';
+      _storage.storageFileName = '${appDocDir.path}/hr_$now';
     }
     var buffer = currentBuffer;
     currentBuffer = currentBuffer == buffer1 ? buffer2 : buffer1;
 
     String line = json.encode(buffer) + "\n";
 
-    var file = File(_storageFileName);
+    var file = File(_storage.storageFileName);
     await file.writeAsString(line, mode: FileMode.append);
     _storing = false;
   }
 
   void startListening() {
-    var hrm = _service.characteristics.firstWhere((c) => c.uuid == heartRateMeasurementGuid, orElse: null);
+    var hrm = _hrDevice.service.characteristics.firstWhere((c) => c.uuid == heartRateMeasurementGuid, orElse: null);
     if (hrm != null) {
       hrm.setNotifyValue(true);
       _valuesSubscription = hrm.value.listen((event) {
@@ -198,7 +199,7 @@ class _MyHomePageState extends State<MyHomePage> {
           var idx = path.lastIndexOf('/');
           if (idx > 0) {
             var filename = path.substring(idx + 1);
-            if (filename.startsWith("hr_") && filename != _storageFileName) _files.add(filename);
+            if (filename.startsWith("hr_") && filename != _storage.storageFileName) _files.add(filename);
           }
         }
       });
@@ -240,11 +241,11 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            if (!_searching && _service == null)
+            if (!_searching && _hrDevice.service == null)
               TextButton(onPressed: searchForHrvDevice, child: Text("Search for HeartRate device"))
-            else if (_service == null)
+            else if (_hrDevice.service == null)
               TextButton(onPressed: stopSearch, child: Text("Stop search")),
-            if (_service == null && _devices != null && _devices.length > 0)
+            if (_hrDevice.service == null && _devices != null && _devices.length > 0)
               SizedBox(
                 height: 200,
                 child: ListView.builder(
@@ -255,8 +256,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   },
                 ),
               ),
-            if (_device != null) Text("device: ${_device.name}"),
-            if (_device != null) Text("status: $_state"),
+            if (_hrDevice.device != null) Text("device: ${_hrDevice.device.name}"),
+            if (_hrDevice.device != null) Text("status: $_state"),
             if (_listening)
               TextButton(
                   onPressed: stopListening,
@@ -322,6 +323,25 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
           ],
         ),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.healing),
+            label: 'HR',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.device_hub),
+            label: 'Device',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.storage),
+            label: 'Files',
+          ),
+        ],
+        currentIndex: 0,
+        selectedItemColor: Colors.amber[800],
+        onTap: (idx) {},
       ),
     );
   }
