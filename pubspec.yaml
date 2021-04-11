@@ -23,9 +23,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_blue: ^0.7.3
+  flutter_blue: ^0.8.0
   path_provider: ^1.6.27
-  share: ^0.6.5+4
+  share: ^2.0.1
 
 
   # The following adds the Cupertino Icons font to your application.
