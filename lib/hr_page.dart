@@ -36,6 +36,7 @@ class _HrPageState extends State<HrPage> {
   List<int> buffer1 = List<int>.empty(growable: true);
   List<int> buffer2 = List<int>.empty(growable: true);
   List<int> currentBuffer;
+  DateTime bufferStart;
   bool _storing = false;
   Stopwatch stopWatch = Stopwatch();
   Timer stopWatchTimer;
@@ -55,9 +56,10 @@ class _HrPageState extends State<HrPage> {
     super.initState();
   }
 
-  void stopListening() {
+  void stopListening() async {
     if (_hrDevice.service == null) return;
     var hrm = _hrDevice.service.characteristics.firstWhere((c) => c.uuid == heartRateMeasurementGuid, orElse: null);
+    await storeRrData();
     _storage.files.add(_storage.storageFileName);
     _storage.onFilesChanged.invoke();
 
@@ -76,21 +78,37 @@ class _HrPageState extends State<HrPage> {
     }
   }
 
-  void storeRrData() async {
-    _storing = true;
+  Future initializeStorageFile() async {
     if (_storage.storageFileName == "") {
       var appDocDir = await getApplicationDocumentsDirectory();
       var now = DateTime.now().toIso8601String().replaceAll(':', '-');
       _storage.storageFileName = '${appDocDir.path}/hr_$now';
     }
+  }
+
+  Future storeRrData() async {
+    _storing = true;
+    await initializeStorageFile();
     var buffer = currentBuffer;
     currentBuffer = currentBuffer == buffer1 ? buffer2 : buffer1;
 
-    String line = json.encode(buffer) + "\n";
-
     var file = File(_storage.storageFileName);
-    await file.writeAsString(line, mode: FileMode.append);
+    var record = {"time": bufferStart.toIso8601String(), "data": buffer};
+    await file.writeAsString("RR=", mode: FileMode.append);
+    await file.writeAsString(json.encode(record), mode: FileMode.append);
+    await file.writeAsString("\n", mode: FileMode.append);
+    buffer.clear();
+    bufferStart = DateTime.now();
     _storing = false;
+  }
+
+  void storeActivity(String activity) async {
+    await initializeStorageFile();
+    var file = File(_storage.storageFileName);
+    var record = {"time": DateTime.now().toIso8601String(), "activity": activity};
+    await file.writeAsString("Activity=", mode: FileMode.append);
+    await file.writeAsString(json.encode(record), mode: FileMode.append);
+    await file.writeAsString("\n", mode: FileMode.append);
   }
 
   void startListening() {
@@ -108,13 +126,18 @@ class _HrPageState extends State<HrPage> {
             }
           }
         });
-        stopWatch.start();
       });
+      storeActivity(_selectedActivity);
+      stopWatch.start();
+      bufferStart = DateTime.now();
       setState(() {
         _listening = true;
       });
     }
   }
+
+  List<String> _activities = ['Meditation', 'Chi Gong', 'Running', 'Sleeping', 'Sitting', 'Standing'];
+  String _selectedActivity = 'Meditation';
 
   String durationToString(Duration duration) =>
       "${duration.inHours}:${duration.inMinutes.remainder(60)}:${(duration.inSeconds.remainder(60))}";
@@ -149,6 +172,15 @@ class _HrPageState extends State<HrPage> {
             "Duration: " + durationToString(Duration(milliseconds: stopWatch.elapsedMilliseconds)),
             style: TextStyle(fontSize: 30, color: Colors.green[600]),
           ),
+          DropdownButton<String>(
+              items: _activities.map((e) => DropdownMenuItem(child: Text(e), value: e)).toList(),
+              value: _selectedActivity,
+              onChanged: (newValue) {
+                setState(() {
+                  _selectedActivity = newValue;
+                });
+              }),
+          TextButton(onPressed: () => storeActivity(_selectedActivity), child: Text("Store Activity", style: TextStyle(fontSize: 30))),
         ],
       ),
     );

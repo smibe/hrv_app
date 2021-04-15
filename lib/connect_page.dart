@@ -55,11 +55,15 @@ class _ConnectPageState extends State<ConnectPage> {
   }
 
   void connect(BluetoothDevice device) async {
-    await device.connect(timeout: Duration(seconds: 3));
+    print('Connecting to device: ${device.name} ...');
+    await device.connect(timeout: Duration(seconds: 10));
+    print('Device ${device.name} connected.');
     _hrDevice.service = null;
     var services = await device.discoverServices();
     services.forEach((service) {
+      print('Discovered servie: ${service.uuid}');
       if (_hrDevice.service == null && service.uuid == heartRateService) {
+        print("Detected HR service.");
         _hrDevice.device = device;
         _hrDevice.service = service;
         _stateSubscription = _hrDevice.device.state.listen((event) {
@@ -68,7 +72,6 @@ class _ConnectPageState extends State<ConnectPage> {
             _hrDevice.stateChanged.invoke();
           });
         });
-        print("HR sensor found.");
       }
     });
   }
