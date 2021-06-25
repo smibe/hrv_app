@@ -16,7 +16,7 @@ class Storage {
     this.files.clear();
     for (var f in files) {
       var path = f.path;
-      var idx = path.lastIndexOf('/');
+      var idx = path.lastIndexOf(Platform.pathSeparator);
       if (idx > 0) {
         var filename = path.substring(idx + 1);
         if (filename.startsWith("hr_") && filename != storageFileName) this.files.add(filename);

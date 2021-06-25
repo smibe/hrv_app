@@ -136,7 +136,17 @@ class _HrPageState extends State<HrPage> {
     }
   }
 
-  List<String> _activities = ['Meditation', 'Chi Gong', 'Running', 'Sleeping', 'Sitting', 'Standing'];
+  List<String> _activities = [
+    'Meditation',
+    'Chi Gong',
+    'Running',
+    'Sleeping',
+    'Sitting',
+    'Standing',
+    "Programming",
+    "Computer work",
+    "Watch television"
+  ];
   String _selectedActivity = 'Meditation';
 
   String durationToString(Duration duration) =>

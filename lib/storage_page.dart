@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:hrv_app/hrv_chart.dart';
 import 'package:share/share.dart';
 import 'package:path_provider/path_provider.dart';
+import 'fft_chart.dart';
 import 'storage.dart';
 import 'dart:math';
 
@@ -23,8 +24,10 @@ class _StoragePageState extends State<StoragePage> {
   List<int> _data;
   double _rmssd;
   double _sdnn;
+  double _hrMedian;
   Duration duration = Duration(milliseconds: 0);
   String _currentFileName = "";
+  ChartType _chartType = ChartType.HR;
 
   _StoragePageState(this._storage);
 
@@ -82,6 +85,8 @@ class _StoragePageState extends State<StoragePage> {
 
     if (data.isEmpty) return;
 
+    if (_chartType == ChartType.HR) data.map((e) => 60000 / e);
+
     var stats = Stats.fromData(data);
     int squareSum = 0;
     for (int i = 0; i < data.length - 1; i++) {
@@ -92,6 +97,7 @@ class _StoragePageState extends State<StoragePage> {
     setState(() {
       _currentFileName = fileName;
       _data = data;
+      _hrMedian = 60000 / stats.median;
       _sdnn = stats.standardDeviation;
       _rmssd = sqrt(squareSum / (data.length - 1));
       duration = Duration(milliseconds: data.sum);
@@ -107,14 +113,26 @@ class _StoragePageState extends State<StoragePage> {
   Widget build(Object context) {
     return Column(
       children: [
-        if (_data != null) HrvLineChart.withData(_data),
+        if (Platform.isWindows && _data != null && _chartType == ChartType.FFT) FftLineChart.withData(_data, _chartType),
+        if (_data != null && _chartType != ChartType.FFT) HrvLineChart.withData(_data, _chartType),
         if (_data != null) Text("Duration: ${getDuration(duration)}"),
         if (_data != null) Text("SDNN: ${_sdnn.toStringAsFixed(2)}"),
         if (_data != null) Text("RMSSD: ${_rmssd.toStringAsFixed(2)}"),
+        if (_data != null) Text("HR median: ${_hrMedian.toStringAsFixed(1)}"),
+        if (_data != null)
+          Row(
+            children: [
+              TextButton(
+                  onPressed: () => setState(() => _chartType = ChartType.values[(_chartType.index + 1) % ChartType.values.length]),
+                  child: Text(_chartType.toString())),
+            ],
+          ),
         Expanded(
           child: ListView.builder(
             padding: EdgeInsets.fromLTRB(10, 20, 10, 20),
             itemCount: _files.length,
+            scrollDirection: Axis.vertical,
+            shrinkWrap: true,
             itemBuilder: (BuildContext context, int index) {
               return Container(
                   padding: EdgeInsets.fromLTRB(30, 0, 10, 0),

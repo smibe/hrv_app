@@ -70,6 +70,9 @@ class _ConnectPageState extends State<ConnectPage> {
           setState(() {
             _hrDevice.state = event;
             _hrDevice.stateChanged.invoke();
+            if (_hrDevice.state == BluetoothDeviceState.disconnected) {
+              _hrDevice.service = null;
+            }
           });
         });
       }
@@ -91,7 +94,7 @@ class _ConnectPageState extends State<ConnectPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          if (!_searching && _hrDevice.service == null)
+          if (!_searching && (_hrDevice.service == null || _hrDevice.state == BluetoothDeviceState.disconnected))
             TextButton(onPressed: searchForHrvDevice, child: Text("Search for HeartRate device"))
           else if (_hrDevice.service == null)
             TextButton(onPressed: stopSearch, child: Text("Stop search")),
