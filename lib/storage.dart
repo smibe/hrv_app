@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import 'event.dart';
+import 'settings.dart' as settings;
 
 class Storage {
   String storageFileName = "";
@@ -10,8 +11,8 @@ class Storage {
   Event onFilesChanged = Event();
 
   Future<List<String>> getFiles() async {
-    var appDocDir = await getApplicationDocumentsDirectory();
-    var directory = Directory(appDocDir.path);
+    var appDocDir = await settings.dataDirectory();
+    var directory = Directory(appDocDir);
     var files = directory.listSync();
     this.files.clear();
     for (var f in files) {

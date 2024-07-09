@@ -17,9 +17,10 @@ class ConnectPage extends StatefulWidget {
 class _ConnectPageState extends State<ConnectPage> {
   HrDevice _hrDevice;
   bool _searching = false;
-  Map<DeviceIdentifier, BluetoothDevice> _devices = Map<DeviceIdentifier, BluetoothDevice>();
-  StreamSubscription<List<ScanResult>> _scanForDevices;
-  StreamSubscription<BluetoothDeviceState> _stateSubscription;
+  Map<DeviceIdentifier, BluetoothDevice> _devices =
+      Map<DeviceIdentifier, BluetoothDevice>();
+  late StreamSubscription<List<ScanResult>> _scanForDevices;
+  late StreamSubscription<BluetoothDeviceState> _stateSubscription;
   var heartRateService = Guid("0000180d-0000-1000-8000-00805f9b34fb");
 
   void searchForHrvDevice() {
@@ -54,9 +55,9 @@ class _ConnectPageState extends State<ConnectPage> {
     });
   }
 
-  void connect(BluetoothDevice device) async {
-    print('Connecting to device: ${device.name} ...');
-    await device.connect(timeout: Duration(seconds: 10));
+  void connect(BluetoothDevice? device) async {
+    print('Connecting to device: ${device!.name} ...');
+    await device!.connect(timeout: Duration(seconds: 10));
     print('Device ${device.name} connected.');
     _hrDevice.service = null;
     var services = await device.discoverServices();
@@ -66,7 +67,7 @@ class _ConnectPageState extends State<ConnectPage> {
         print("Detected HR service.");
         _hrDevice.device = device;
         _hrDevice.service = service;
-        _stateSubscription = _hrDevice.device.state.listen((event) {
+        _stateSubscription = _hrDevice.device!.state.listen((event) {
           setState(() {
             _hrDevice.state = event;
             _hrDevice.stateChanged.invoke();
@@ -79,8 +80,8 @@ class _ConnectPageState extends State<ConnectPage> {
     });
   }
 
-  void disconnect(BluetoothDevice device) async {
-    if (await device.state.first == BluetoothDeviceState.disconnected) return;
+  void disconnect(BluetoothDevice? device) async {
+    if (await device!.state.first == BluetoothDeviceState.disconnected) return;
     await device.disconnect();
     setState(() {
       _hrDevice.service = null;
@@ -94,28 +95,38 @@ class _ConnectPageState extends State<ConnectPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          if (!_searching && (_hrDevice.service == null || _hrDevice.state == BluetoothDeviceState.disconnected))
-            TextButton(onPressed: searchForHrvDevice, child: Text("Search for HeartRate device"))
+          if (!_searching &&
+              (_hrDevice.service == null ||
+                  _hrDevice.state == BluetoothDeviceState.disconnected))
+            TextButton(
+                onPressed: searchForHrvDevice,
+                child: Text("Search for HeartRate device"))
           else if (_hrDevice.service == null)
             TextButton(onPressed: stopSearch, child: Text("Stop search")),
-          if (_hrDevice.service == null && _devices != null && _devices.length > 0)
+          if (_hrDevice.service == null &&
+              _devices != null &&
+              _devices.length > 0)
             SizedBox(
               height: 200,
               child: ListView.builder(
                 itemCount: _devices.length,
                 itemBuilder: (BuildContext context, int index) {
                   var key = _devices.keys.toList()[index];
-                  return TextButton(onPressed: () => connect(_devices[key]), child: Text(_devices[key].name));
+                  return TextButton(
+                      onPressed: () => connect(_devices[key]),
+                      child: Text(_devices[key]!.name));
                 },
               ),
             ),
-          if (_hrDevice.device != null && _hrDevice.state == BluetoothDeviceState.connected)
+          if (_hrDevice.device != null &&
+              _hrDevice.state == BluetoothDeviceState.connected)
             TextButton(
                 onPressed: () {
                   disconnect(_hrDevice.device);
                 },
                 child: Text("Disconnect")),
-          if (_hrDevice.device != null) Text("device: ${_hrDevice.device.name}"),
+          if (_hrDevice.device != null)
+            Text("device: ${_hrDevice.device!.name}"),
           if (_hrDevice.device != null) Text("status: ${_hrDevice.state}"),
         ],
       ),

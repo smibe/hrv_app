@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'fft_chart.dart';
 import 'storage.dart';
 import 'dart:math';
+import 'settings.dart' as settings;
 
 class StoragePage extends StatefulWidget {
   final Storage _storage;
@@ -21,10 +22,10 @@ class StoragePage extends StatefulWidget {
 class _StoragePageState extends State<StoragePage> {
   List<String> _files = List<String>.empty();
   Storage _storage;
-  List<int> _data;
-  double _rmssd;
-  double _sdnn;
-  double _hrMedian;
+  late List<int> _data;
+  double _rmssd = 0;
+  num _sdnn = 0;
+  late double _hrMedian;
   Duration duration = Duration(milliseconds: 0);
   String _currentFileName = "";
   ChartType _chartType = ChartType.HR;
@@ -36,7 +37,9 @@ class _StoragePageState extends State<StoragePage> {
     if (idx > 0) dataFilename = dataFilename.substring(0, idx);
     idx = dataFilename.lastIndexOf('T');
     if (idx > 0) {
-      dataFilename = dataFilename.substring(0, idx) + " " + dataFilename.substring(idx + 1).replaceAll("-", ":");
+      dataFilename = dataFilename.substring(0, idx) +
+          " " +
+          dataFilename.substring(idx + 1).replaceAll("-", ":");
     }
     return dataFilename;
   }
@@ -65,10 +68,71 @@ class _StoragePageState extends State<StoragePage> {
     super.initState();
   }
 
+  int calcAverageOfPrevious(List<int> data, int idx, int numOfPoints) {
+    int sum = 0;
+    int count = 0;
+    idx--;
+    while (idx > 0) {
+      if (data[idx] != 0) {
+        sum += data[idx];
+        count++;
+      }
+
+      idx--;
+      if (count > numOfPoints) {
+        break;
+      }
+    }
+    return sum ~/ count;
+  }
+
+  void normalizeData(List<int> data, int seconds) {
+    int sum = data.sum;
+    int startIdx = 0;
+    int endIdx = data.length - 1;
+    if (sum > seconds * 1000) {
+      // cut 2/3 from start
+      int cutFirst = ((sum - seconds * 1000) * 2) ~/ 3;
+      int interval = 0;
+      int idx = 0;
+      while (interval < cutFirst) {
+        interval += data[idx];
+        idx++;
+      }
+      startIdx = idx;
+
+      // remove outliers, we remove every number and successor if the difference is greater than 20% of the medium of previous 5 numbers
+      for (int i = startIdx; i < data.length; i++) {
+        var average = calcAverageOfPrevious(data, i, 5);
+        if (average > 0 &&
+            (data[i] < average - average * 15 ~/ 100 ||
+                data[i] > average + average * 15 ~/ 100)) {
+          data[i] = 0;
+        }
+      }
+
+      // remove all nulls
+      data.removeWhere((element) => element == 0);
+
+      // now calculate last index to have an interval of seconds
+      startIdx = idx;
+      interval = 0;
+      while (interval < seconds * 1000) {
+        if (idx >= data.length) break;
+        interval += data[idx];
+        idx++;
+      }
+      endIdx = idx;
+    }
+
+    data.removeRange(0, startIdx);
+    data.removeRange(endIdx - startIdx, data.length);
+  }
+
   void prepareData(int idx) async {
     var fileName = widget._storage.files[idx];
-    var appDocDir = await getApplicationDocumentsDirectory();
-    File file = File('${appDocDir.path}/$fileName');
+    var appDocDir = await settings.dataDirectory();
+    File file = File('${appDocDir}/$fileName');
     List<int> data = List.empty(growable: true);
     var lines = await file.readAsLines();
     for (var line in lines) {
@@ -82,6 +146,8 @@ class _StoragePageState extends State<StoragePage> {
         }
       }
     }
+
+    normalizeData(data, 300);
 
     if (data.isEmpty) return;
 
@@ -113,8 +179,10 @@ class _StoragePageState extends State<StoragePage> {
   Widget build(Object context) {
     return Column(
       children: [
-        if (Platform.isWindows && _data != null && _chartType == ChartType.FFT) FftLineChart.withData(_data, _chartType),
-        if (_data != null && _chartType != ChartType.FFT) HrvLineChart.withData(_data, _chartType),
+        if (Platform.isWindows && _data != null && _chartType == ChartType.FFT)
+          FftLineChart.withData(_data, _chartType),
+        if (_data != null && _chartType != ChartType.FFT)
+          HrvLineChart.withData(_data, _chartType),
         if (_data != null) Text("Duration: ${getDuration(duration)}"),
         if (_data != null) Text("SDNN: ${_sdnn.toStringAsFixed(2)}"),
         if (_data != null) Text("RMSSD: ${_rmssd.toStringAsFixed(2)}"),
@@ -123,7 +191,8 @@ class _StoragePageState extends State<StoragePage> {
           Row(
             children: [
               TextButton(
-                  onPressed: () => setState(() => _chartType = ChartType.values[(_chartType.index + 1) % ChartType.values.length]),
+                  onPressed: () => setState(() => _chartType = ChartType.values[
+                      (_chartType.index + 1) % ChartType.values.length]),
                   child: Text(_chartType.toString())),
             ],
           ),
@@ -137,12 +206,15 @@ class _StoragePageState extends State<StoragePage> {
               return Container(
                   padding: EdgeInsets.fromLTRB(30, 0, 10, 0),
                   height: 30,
-                  color: _currentFileName == widget._storage.files[index] ? Colors.grey[200] : Colors.white,
+                  color: _currentFileName == widget._storage.files[index]
+                      ? Colors.grey[200]
+                      : Colors.white,
                   child: Row(
                     children: [
                       TextButton(
                         onPressed: () => prepareData(index),
-                        child: Text(dataFileToString(widget._storage.files[index])),
+                        child: Text(
+                            dataFileToString(widget._storage.files[index])),
                       ),
                       IconButton(
                           icon: Icon(
@@ -158,8 +230,10 @@ class _StoragePageState extends State<StoragePage> {
                             color: Colors.blue,
                           ),
                           onPressed: () async {
-                            var appDocDir = await getApplicationDocumentsDirectory();
-                            var file = File('${appDocDir.path}/${widget._storage.files[index]}');
+                            var appDocDir =
+                                await getApplicationDocumentsDirectory();
+                            var file = File(
+                                '${appDocDir.path}/${widget._storage.files[index]}');
                             file.delete();
                             setState(() {
                               widget._storage.files.removeAt((index));

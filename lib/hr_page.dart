@@ -30,16 +30,16 @@ class _HrPageState extends State<HrPage> {
 
   HrDevice _hrDevice;
   Storage _storage;
-  StreamSubscription<List<int>> _valuesSubscription;
+  late StreamSubscription<List<int>> _valuesSubscription;
 
   bool storing = false;
   List<int> buffer1 = List<int>.empty(growable: true);
   List<int> buffer2 = List<int>.empty(growable: true);
-  List<int> currentBuffer;
-  DateTime bufferStart;
+  late List<int> currentBuffer;
+  late DateTime bufferStart;
   bool _storing = false;
   Stopwatch stopWatch = Stopwatch();
-  Timer stopWatchTimer;
+  late Timer stopWatchTimer;
   var heartRateMeasurementGuid = Guid("00002a37-0000-1000-8000-00805f9b34fb");
 
   void initState() {
@@ -58,7 +58,8 @@ class _HrPageState extends State<HrPage> {
 
   void stopListening() async {
     if (_hrDevice.service == null) return;
-    var hrm = _hrDevice.service.characteristics.firstWhere((c) => c.uuid == heartRateMeasurementGuid, orElse: null);
+    var hrm = _hrDevice.service!.characteristics
+        .firstWhere((c) => c.uuid == heartRateMeasurementGuid, orElse: null);
     await storeRrData();
     _storage.files.add(_storage.storageFileName);
     _storage.onFilesChanged.invoke();
@@ -105,14 +106,18 @@ class _HrPageState extends State<HrPage> {
   void storeActivity(String activity) async {
     await initializeStorageFile();
     var file = File(_storage.storageFileName);
-    var record = {"time": DateTime.now().toIso8601String(), "activity": activity};
+    var record = {
+      "time": DateTime.now().toIso8601String(),
+      "activity": activity
+    };
     await file.writeAsString("Activity=", mode: FileMode.append);
     await file.writeAsString(json.encode(record), mode: FileMode.append);
     await file.writeAsString("\n", mode: FileMode.append);
   }
 
   void startListening() {
-    var hrm = _hrDevice.service.characteristics.firstWhere((c) => c.uuid == heartRateMeasurementGuid, orElse: null);
+    var hrm = _hrDevice.service!.characteristics
+        .firstWhere((c) => c.uuid == heartRateMeasurementGuid, orElse: null);
     if (hrm != null) {
       hrm.setNotifyValue(true);
       _valuesSubscription = hrm.value.listen((event) {
@@ -158,8 +163,11 @@ class _HrPageState extends State<HrPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          if (_hrDevice.service == null) TextButton(onPressed: _connect, child: Text("Connect HeartRate device")),
-          if (_hrDevice.device != null) Text("device: ${_hrDevice.device.name}"),
+          if (_hrDevice.service == null)
+            TextButton(
+                onPressed: _connect, child: Text("Connect HeartRate device")),
+          if (_hrDevice.device != null)
+            Text("device: ${_hrDevice.device!.name}"),
           if (_hrDevice.device != null) Text("status: $_state"),
           if (_listening)
             TextButton(
@@ -169,7 +177,9 @@ class _HrPageState extends State<HrPage> {
                   style: TextStyle(fontSize: 30),
                 ))
           else
-            TextButton(onPressed: startListening, child: Text("Start", style: TextStyle(fontSize: 30))),
+            TextButton(
+                onPressed: startListening,
+                child: Text("Start", style: TextStyle(fontSize: 30))),
           Text(
             "HR: " + _hr.toString(),
             style: TextStyle(fontSize: 30, color: Colors.green[600]),
@@ -179,18 +189,24 @@ class _HrPageState extends State<HrPage> {
             style: TextStyle(fontSize: 30, color: Colors.green[600]),
           ),
           Text(
-            "Duration: " + durationToString(Duration(milliseconds: stopWatch.elapsedMilliseconds)),
+            "Duration: " +
+                durationToString(
+                    Duration(milliseconds: stopWatch.elapsedMilliseconds)),
             style: TextStyle(fontSize: 30, color: Colors.green[600]),
           ),
           DropdownButton<String>(
-              items: _activities.map((e) => DropdownMenuItem(child: Text(e), value: e)).toList(),
+              items: _activities
+                  .map((e) => DropdownMenuItem(child: Text(e), value: e))
+                  .toList(),
               value: _selectedActivity,
               onChanged: (newValue) {
                 setState(() {
-                  _selectedActivity = newValue;
+                  _selectedActivity = newValue ?? "";
                 });
               }),
-          TextButton(onPressed: () => storeActivity(_selectedActivity), child: Text("Store Activity", style: TextStyle(fontSize: 30))),
+          TextButton(
+              onPressed: () => storeActivity(_selectedActivity),
+              child: Text("Store Activity", style: TextStyle(fontSize: 30))),
         ],
       ),
     );
